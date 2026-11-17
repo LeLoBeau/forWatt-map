@@ -7,6 +7,7 @@
     "start": "node server.js",
     "check": "node scripts/check-coverage.cjs",
     "build-dso": "node --max-old-space-size=6144 scripts/build-dso.cjs",
-    "build-geo": "node --max-old-space-size=6144 scripts/build-geo.cjs"
+    "build-geo": "node --max-old-space-size=6144 scripts/build-geo.cjs",
+    "build-border": "node scripts/build-border.cjs"
   }
 }

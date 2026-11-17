@@ -19,6 +19,8 @@ body {
 
 .main { display: flex; height: 100vh; height: 100dvh; }
 #map { flex: 1; background: #E8EAED; min-width: 0; }
+/* base map in muted greyscale so the coloured regions carry the colour */
+#map .leaflet-tile-pane { filter: grayscale(1) contrast(.9) brightness(1.04); }
 
 .sidebar {
   width: 430px; flex-shrink: 0; background: var(--panel);
@@ -188,6 +190,20 @@ body {
 
   .leaflet-tooltip.vnb-tt { max-width: 78vw; }
 }
+
+/* map legend (Leaflet control, bottom right) */
+.map-legend {
+  background: rgba(255,255,255,.94); border: 1px solid var(--border); border-radius: 12px;
+  padding: 10px 12px; box-shadow: 0 4px 14px rgba(0,0,0,.1); width: 210px;
+  font-family: inherit; color: var(--text);
+}
+.map-legend .ml-title { font-size: .76rem; font-weight: 600; }
+.map-legend .ml-sub { font-size: .66rem; color: var(--muted); margin-top: 1px; }
+.map-legend .ml-bar { height: 10px; border-radius: 5px; margin-top: 8px; }
+.map-legend .ml-ticks { display: flex; justify-content: space-between; font-size: .66rem; color: var(--muted); margin-top: 3px; }
+.map-legend .ml-na { display: flex; align-items: center; gap: 6px; font-size: .66rem; color: var(--muted); margin-top: 7px; }
+.map-legend .ml-swatch { width: 14px; height: 10px; border-radius: 3px; flex-shrink: 0; }
+@media (max-width: 768px) { .map-legend { width: 170px; padding: 8px 10px; } }
 
 /* leaflet tooltip */
 .leaflet-tooltip.vnb-tt {
