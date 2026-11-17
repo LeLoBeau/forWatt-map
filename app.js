@@ -26,9 +26,18 @@ function setSidebarOpen(open) {
 }
 
 // ---------- color scale ----------
-function smColor(r) {
-  if (r == null) return '#475569';
-  return `hsl(${Math.round(r * 120)}, 68%, 46%)`;          // red -> yellow -> green
+// for.Watt logo gradient: yellow (low quota) -> orange (high quota).
+// Most quotas sit between 0 and 40 %, so the scale saturates at SM_SCALE_MAX
+// instead of 100 % - otherwise nearly every region would look the same yellow.
+const SM_LOW = [0xFF, 0xC1, 0x00], SM_HIGH = [0xFF, 0x73, 0x00], SM_SCALE_MAX = .5;
+// partner without a published quota ("k. A."): a solid slate, clearly visible
+// on the greyscale base map and clearly not part of the yellow-orange scale
+const SM_NA = [0x5E, 0x75, 0x80];
+function smColor(r, shade = 1) {   // shade < 1 darkens (used for hover)
+  if (r == null) return `rgb(${SM_NA.map(v => Math.round(v * shade)).join(',')})`;
+  const t = Math.min(Math.max(r / SM_SCALE_MAX, 0), 1);
+  const c = SM_LOW.map((lo, i) => Math.round((lo + (SM_HIGH[i] - lo) * t) * shade));
+  return `rgb(${c.join(',')})`;
 }
 const smValue = id => { const e = smData[id]; return e ? e[state.smMetric] : null; };
 const smMit = id => { const e = smData[id]; return e ? e.mit : null; };        // fixed metric for partner figures
@@ -46,22 +55,32 @@ function styleFor(feature) {
   const fill = smColor(smValue(id));
   const covered = state.forwatt && state.matched.has(id);
 
-  if (!ok) return { fillColor: fill, weight: 0.5, color: '#ffffff', opacity: .5, fillOpacity: .05 };
+  // `stroke` is set explicitly everywhere: setStyle() merges, so a stroke:false
+  // would otherwise stick when a feature switches to another state
+  if (!ok) return { stroke: false, fillColor: fill, fillOpacity: .05 };
   if (state.forwatt) {
-    // covered: keep the region's choropleth colour, mark coverage with the for.Watt orange outline
-    if (covered) return { fillColor: fill, weight: 2.5, color: '#E75420', opacity: 1, fillOpacity: .85 };
-    // non-covered: light grey wash so the country shape stays visible
-    return { fillColor: '#B8C0C4', weight: 0.5, color: '#ffffff', opacity: .6, fillOpacity: .45 };
+    // covered: each VNB is made of many Gemeinde polygons. Drawn opaque with a
+    // 1px outline in the fill colour, so neither inner borders nor the hairline
+    // anti-aliasing gaps between neighbouring polygons show. The see-through
+    // look comes from the opacity of the whole regions pane (REGIONS_OPACITY),
+    // which - unlike per-shape opacity - doesn't darken where shapes overlap.
+    if (covered) return solidStyle(fill);
+    // non-covered: not drawn at all (still hoverable for the tooltip)
+    return { stroke: false, fillOpacity: 0 };
   }
-  if (state.selected === id) return { fillColor: fill, weight: 3, color: '#1D1D1D', opacity: 1, fillOpacity: .9 };
-  return { fillColor: fill, weight: 1, color: '#ffffff', opacity: .8, fillOpacity: smValue(id) != null ? .72 : .3 };
+  if (state.selected === id) return { stroke: true, fillColor: fill, weight: 3, color: '#1D1D1D', opacity: 1, fillOpacity: .9 };
+  return { stroke: true, fillColor: fill, weight: 1, color: '#ffffff', opacity: .8, fillOpacity: smValue(id) != null ? .72 : .3 };
 }
-// hover: keep the region's own colours; lean on a fill lift so the territory
-// reads as one solid block, with just a thin outline on top
+const REGIONS_OPACITY = .85;
+const solidStyle = c => ({ stroke: true, color: c, weight: 1, opacity: 1, fillColor: c, fillOpacity: 1 });
+// hover: covered regions turn a darker shade of their own colour; non-covered
+// regions, invisible at rest, show up in blue
 function hoverStyleFor(feature) {
   const base = styleFor(feature);
-  return { ...base, weight: 1.6, color: '#1D1D1D', opacity: .9, dashArray: null,
-    fillOpacity: Math.min(Math.max(base.fillOpacity, .5) + .22, .95) };
+  const id = feature.properties.vnb_id;
+  if (state.forwatt) return solidStyle(state.matched.has(id) ? smColor(smValue(id), .78) : '#6FA3D6');
+  const lift = Math.min(Math.max(base.fillOpacity, .5) + .22, .95);
+  return { ...base, weight: 1.6, color: '#1D1D1D', opacity: .9, dashArray: null, fillOpacity: lift };
 }
 function restyle() {
   if (!geoLayer) return;
@@ -88,10 +107,11 @@ const esc = s => String(s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;',
 
 // ---------- init ----------
 async function init() {
-  const [geo, dso, sm] = await Promise.all([
+  const [geo, dso, sm, border] = await Promise.all([
     fetch('data/geo.json').then(r => r.json()),
     fetch('data/dso.json').then(r => r.json()),
     fetch('data/sm.json').then(r => r.json()),
+    fetch('data/de-border.json').then(r => r.json()).catch(() => null),  // optional decoration
   ]);
 
   dsoList = dso;
@@ -100,7 +120,14 @@ async function init() {
   smData = period.data;
   document.getElementById('period-label').textContent = period.label;
 
-  map = L.map('map', { zoomControl: true, preferCanvas: true }).setView([51.2, 10.4], 6);
+  map = L.map('map', {
+    zoomControl: true, preferCanvas: true,
+    // gentler mouse-wheel zoom: Leaflet's defaults (snap 1, 60 px/level) jump
+    // ~2 levels per wheel notch; this gives ~0.75 levels per notch. The +/-
+    // buttons keep zoomDelta 1.
+    zoomSnap: 0.25,
+    wheelPxPerZoomLevel: 120,
+  }).setView([51.2, 10.4], 6);
   L.tileLayer(
     'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
     {
@@ -110,7 +137,15 @@ async function init() {
   ).addTo(map);
 
 
+  if (border) addOutsideMask(border);
+
+  // own pane + canvas for the regions, so their transparency is applied once
+  // to the finished picture (see styleFor)
+  const regionsPane = map.createPane('regions');
+  regionsPane.style.opacity = REGIONS_OPACITY;
+  regionsPane.style.zIndex = 400;
   geoLayer = L.geoJSON(geo, {
+    renderer: L.canvas({ pane: 'regions' }),
     style: styleFor,
     onEachFeature: (f, layer) => {
       const id = f.properties.vnb_id;
@@ -131,12 +166,30 @@ async function init() {
     },
   }).addTo(map);
 
+  addMapLegend();
   document.getElementById('loading').style.display = 'none';
   wireControls();
   // renderLegend();  // Kartenmodus-Panel (inkl. #legend) ist im HTML auskommentiert
   renderList();
   updateCount();
   loadForwatt();  // auto-refresh coverage on every page open
+}
+
+// ---------- outside Germany: a veil over foreign countries and the sea ----------
+// One polygon: a world-sized ring with every German land polygon cut out as a
+// hole (Leaflet fills even-odd), drawn between the base map and the regions.
+function addOutsideMask(border) {
+  const pane = map.createPane('outside');
+  pane.style.zIndex = 390;
+  pane.style.pointerEvents = 'none';
+  const toLatLngs = ring => ring.map(([lng, lat]) => [lat, lng]);
+  const world = [[-85, -180], [-85, 180], [85, 180], [85, -180]];
+  const holes = border.geometry.coordinates.flatMap(poly => poly.map(toLatLngs));
+  L.polygon([world, ...holes], {
+    renderer: L.canvas({ pane: 'outside' }), interactive: false,
+    stroke: true, color: '#394D55', weight: 1, opacity: .55,   // national border line
+    fillColor: '#394D55', fillOpacity: .28, fillRule: 'evenodd',
+  }).addTo(map);
 }
 
 // ---------- controls ----------
@@ -205,12 +258,30 @@ function updateCount() {
   el.textContent = `${n} / ${total} VNB`;
 }
 
-// ---------- legend ----------
+// ---------- map legend (colour scale, bottom right of the map) ----------
+function addMapLegend() {
+  const legend = L.control({ position: 'bottomright' });
+  legend.onAdd = () => {
+    const el = L.DomUtil.create('div', 'map-legend');
+    const max = SM_SCALE_MAX * 100;
+    el.innerHTML = `
+      <div class="ml-title">Smart-Meter-Quote der Partner</div>
+      <div class="ml-sub">Pflichteinbaufälle mit iMSys</div>
+      <div class="ml-bar" style="background:linear-gradient(90deg, ${smColor(0)}, ${smColor(SM_SCALE_MAX)}); opacity:${REGIONS_OPACITY}"></div>
+      <div class="ml-ticks"><span>0 %</span><span>${max / 2} %</span><span>≥ ${max} %</span></div>
+      <div class="ml-na"><span class="ml-swatch" style="background:${smColor(null)}; opacity:${REGIONS_OPACITY}"></span>keine Angabe (k. A.)</div>`;
+    L.DomEvent.disableClickPropagation(el);
+    return el;
+  };
+  legend.addTo(map);
+}
+
+// ---------- legend (sidebar, currently commented out in the HTML) ----------
 function renderLegend() {
   const el = document.getElementById('legend');
   const ids = Object.keys(dsoById).filter(passes);
-  const grad = 'linear-gradient(90deg, hsl(0,68%,46%), hsl(60,68%,46%), hsl(120,68%,46%))';
-  const ticks = ['0 %', '25 %', '50 %', '75 %', '100 %'];
+  const grad = `linear-gradient(90deg, ${smColor(0)}, ${smColor(SM_SCALE_MAX)})`;
+  const ticks = ['0 %', '25 %', `≥ ${SM_SCALE_MAX * 100} %`];
   const vals = ids.map(smValue).filter(v => v != null);
   const kA = ids.length - vals.length;
   el.innerHTML = legendBody(grad, ticks, vals.map(v => v * 100), '%', kA);
