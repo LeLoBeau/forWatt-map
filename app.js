@@ -26,10 +26,10 @@ function setSidebarOpen(open) {
 }
 
 // ---------- color scale ----------
-// for.Watt logo gradient: red (low quota) -> green (high quota).
+// for.Watt logo gradient: yellow (low quota) -> green (high quota).
 // Most quotas sit between 0 and 40 %, so the scale saturates at SM_SCALE_MAX
 // instead of 100 % - otherwise nearly every region would look the same yellow.
-const SM_LOW = [0xFF, 0xC1, 0x00], SM_HIGH = [0xFF, 0x73, 0x00], SM_SCALE_MAX = .5;
+const SM_LOW = [0xFF, 0xC1, 0x00], SM_HIGH = [0x00, 0x80, 0x00], SM_SCALE_MAX = .5;
 // partner without a published quota ("k. A."): a solid slate, clearly visible
 // on the greyscale base map and clearly not part of the yellow-orange scale
 const SM_NA = [0x5E, 0x75, 0x80];
