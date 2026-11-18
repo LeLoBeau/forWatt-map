@@ -26,7 +26,7 @@ function setSidebarOpen(open) {
 }
 
 // ---------- color scale ----------
-// for.Watt logo gradient: yellow (low quota) -> orange (high quota).
+// for.Watt logo gradient: red (low quota) -> green (high quota).
 // Most quotas sit between 0 and 40 %, so the scale saturates at SM_SCALE_MAX
 // instead of 100 % - otherwise nearly every region would look the same yellow.
 const SM_LOW = [0xFF, 0xC1, 0x00], SM_HIGH = [0xFF, 0x73, 0x00], SM_SCALE_MAX = .5;
