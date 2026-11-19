@@ -243,3 +243,27 @@ body {
   max-height: 200px;
   overflow-y: auto;
 }
+
+/*nochmal für die Suchleiste*/
+.map-search-result {
+  padding: 7px 9px;
+  cursor: pointer;
+  border-top: 1px solid #eee;
+  background: white;
+}
+
+.map-search-result:hover {
+  background: #f2f2f2;
+}
+
+.map-search-result strong {
+  display: block;
+  font-size: 13px;
+}
+
+.map-search-result span {
+  display: block;
+  margin-top: 2px;
+  font-size: 11px;
+  color: #666;
+}
