@@ -167,6 +167,7 @@ async function init() {
   }).addTo(map);
 
   addMapLegend();
+  addMapSearch();
   document.getElementById('loading').style.display = 'none';
   wireControls();
   // renderLegend();  // Kartenmodus-Panel (inkl. #legend) ist im HTML auskommentiert
