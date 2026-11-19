@@ -277,6 +277,92 @@ function addMapLegend() {
   legend.addTo(map);
 }
 
+// ---------- map search ----------
+function addMapSearch() {
+  const search = L.control({ position: 'bottomleft' });
+
+  search.onAdd = () => {
+    const el = L.DomUtil.create('div', 'map-search');
+
+    el.innerHTML = `
+      <input
+        type="text"
+        id="map-search-input"
+        placeholder="VNB suchen..."
+        autocomplete="off"
+      >
+      <div id="map-search-results"></div>
+    `;
+
+    L.DomEvent.disableClickPropagation(el);
+    L.DomEvent.disableScrollPropagation(el);
+
+    setTimeout(() => {
+      const input = document.getElementById('map-search-input');
+      const results = document.getElementById('map-search-results');
+
+      input.addEventListener('input', () => {
+        const query = input.value.trim().toLowerCase();
+
+        if (query.length < 2) {
+          results.innerHTML = '';
+          results.style.display = 'none';
+          return;
+        }
+
+        const matches = [];
+
+        geoLayer.eachLayer(layer => {
+          const p = layer.feature?.properties;
+          if (!p) return;
+
+          const name = String(p.name || '');
+          const city = String(p.city || '');
+
+          if (
+            name.toLowerCase().includes(query) ||
+            city.toLowerCase().includes(query)
+          ) {
+            if (!matches.some(m => m.id === p.vnb_id)) {
+              matches.push({
+                id: p.vnb_id,
+                name,
+                city
+              });
+            }
+          }
+        });
+
+        results.innerHTML = '';
+
+        matches.slice(0, 8).forEach(match => {
+          const item = document.createElement('div');
+          item.className = 'map-search-result';
+
+          item.innerHTML = `
+            <strong>${esc(match.name)}</strong>
+            ${match.city ? `<span>${esc(match.city)}</span>` : ''}
+          `;
+
+          item.addEventListener('click', () => {
+            focusVnb(match.id);
+            input.value = match.name;
+            results.style.display = 'none';
+          });
+
+          results.appendChild(item);
+        });
+
+        results.style.display = matches.length ? 'block' : 'none';
+      });
+    }, 0);
+
+    return el;
+  };
+
+  search.addTo(map);
+}
+
 // ---------- legend (sidebar, currently commented out in the HTML) ----------
 function renderLegend() {
   const el = document.getElementById('legend');
