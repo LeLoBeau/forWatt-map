@@ -175,6 +175,32 @@ async function init() {
   loadForwatt();  // auto-refresh coverage on every page open
 }
 
+function addMapSearch() {
+  const search = L.control({ position: 'bottomleft' });
+
+  search.onAdd = () => {
+    const el = L.DomUtil.create('div', 'map-search');
+
+    el.innerHTML = `
+      <input
+        type="text"
+        id="map-search-input"
+        placeholder="MSB / VNB suchen..."
+        autocomplete="off"
+      >
+      <div id="map-search-results"></div>
+    `;
+
+    // Verhindert, dass Klicks/Eingaben die Karte bedienen
+    L.DomEvent.disableClickPropagation(el);
+    L.DomEvent.disableScrollPropagation(el);
+
+    return el;
+  };
+
+  search.addTo(map);
+}
+
 // ---------- outside Germany: a veil over foreign countries and the sea ----------
 // One polygon: a world-sized ring with every German land polygon cut out as a
 // hole (Leaflet fills even-odd), drawn between the base map and the regions.
