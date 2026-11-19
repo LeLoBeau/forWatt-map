@@ -167,13 +167,16 @@ async function init() {
   }).addTo(map);
 
   addMapLegend();
+  addMapSearch();
   document.getElementById('loading').style.display = 'none';
   wireControls();
   // renderLegend();  // Kartenmodus-Panel (inkl. #legend) ist im HTML auskommentiert
   renderList();
   updateCount();
   loadForwatt();  // auto-refresh coverage on every page open
+
 }
+
 /*new*/
 function addMapSearch() {
   const search = L.control({ position: 'bottomleft' });
@@ -275,8 +278,6 @@ function addMapSearch() {
 
   search.addTo(map);
 }
-/*new*/
-addMapSearch();
 
 // ---------- outside Germany: a veil over foreign countries and the sea ----------
 // One polygon: a world-sized ring with every German land polygon cut out as a
