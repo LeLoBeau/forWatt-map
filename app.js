@@ -185,15 +185,90 @@ function addMapSearch() {
       <input
         type="text"
         id="map-search-input"
-        placeholder="MSB / VNB suchen..."
+        placeholder="VNB suchen..."
         autocomplete="off"
       >
       <div id="map-search-results"></div>
     `;
 
-    // Verhindert, dass Klicks/Eingaben die Karte bedienen
     L.DomEvent.disableClickPropagation(el);
     L.DomEvent.disableScrollPropagation(el);
+
+    // Warten, bis das Element tatsächlich im DOM ist
+    setTimeout(() => {
+      const input = document.getElementById('map-search-input');
+      const results = document.getElementById('map-search-results');
+
+      input.addEventListener('input', () => {
+        const query = input.value.trim().toLowerCase();
+
+        if (query.length < 2) {
+          results.innerHTML = '';
+          results.style.display = 'none';
+          return;
+        }
+
+        // In den Features des bereits vorhandenen GeoJSON-Layers suchen
+        const matches = [];
+
+        geoLayer.eachLayer(layer => {
+          const p = layer.feature?.properties;
+          if (!p) return;
+
+          const name = String(p.name || '');
+          const city = String(p.city || '');
+
+          if (
+            name.toLowerCase().includes(query) ||
+            city.toLowerCase().includes(query)
+          ) {
+            // Mehrteilige VNB-Gebiete nur einmal anzeigen
+            if (!matches.some(m => m.id === p.vnb_id)) {
+              matches.push({
+                id: p.vnb_id,
+                name,
+                city
+              });
+            }
+          }
+        });
+
+        results.innerHTML = '';
+
+        matches.slice(0, 8).forEach(match => {
+          const item = document.createElement('div');
+          item.className = 'map-search-result';
+
+          item.innerHTML = `
+            <strong>${esc(match.name)}</strong>
+            ${match.city ? `<span>${esc(match.city)}</span>` : ''}
+          `;
+
+          item.addEventListener('click', () => {
+            const layers = layersByVnb[match.id];
+            if (!layers || !layers.length) return;
+
+            // Alle Teilflächen des VNB gemeinsam betrachten
+            const group = L.featureGroup(layers);
+            map.fitBounds(group.getBounds(), {
+              padding: [30, 30],
+              maxZoom: 11
+            });
+
+            // Gebiet wie bei einem normalen Klick auswählen
+            state.selected = match.id;
+            restyle();
+
+            input.value = match.name;
+            results.style.display = 'none';
+          });
+
+          results.appendChild(item);
+        });
+
+        results.style.display = matches.length ? 'block' : 'none';
+      });
+    }, 0);
 
     return el;
   };
